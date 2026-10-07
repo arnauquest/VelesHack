@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # 1. Tu API de Python
+  iota-messages-api:
+    image: eclipseaerios/iota-messages-api:1.0.2
+    ports:
+      - "5555:5555"
+
+  # 2. Broker MQTT
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    command: mosquitto -c /mosquitto-no-auth.conf
+
+  # 3. IOTA Coordinador
+  inx-coordinator:
+    image: iotaledger/inx-coordinator:1.0
+    environment:
+      - "COO_PRV_KEYS=e22c9c88a83333a27b4101d7203d7b122bdd73be7bfc75933adf90c829c2b6520cbc8c101dfb83f2129809cb4ad6146593fb71df4a7dbd787c64db6b78529b86,d1f9414a7435a9cbc1f0ff9048d537fb9469f7bef69d5eb88f0c9311bc010115d533b349c7b45b039d36aee7789a29364ed24119ec8306aef71b808b40020ee9"
+    ports:
+      - "6021:6060/tcp"
+    volumes:
+      - inx-coordinator-state:/app/state
+    command:
+      - "--inx.address=srv-captain--iota-hornet:9029"
+      - "--coordinator.stateFilePath=state/coordinator.state"
+      - "--coordinator.blockBackups.enabled=false"
+
+  # 4. IOTA Hornet (El nodo principal)
+  iota-hornet:
+    image: iotaledger/hornet:2.0
+    ports:
+      - "30506:15600"
+      - "14265:14265"
+      - "9029:9029"
+      - "6011:6060/tcp"
+    volumes:
+      - iota-hornet-db:/app/privatedb
+      - iota-hornet-snapshots:/app/snapshots
+    command: 
+      - "-c"
+      - "config_private_tangle.json"
+      - "--node.alias=hornet-node"
+      - "--inx.enabled=true"
+      - "--inx.bindAddress=0.0.0.0:9029"
+      - "--debug.enabled=true"
+  
+  # 5. IOTA Dashboard
+  iota-inx-dashboard:
+    image: iotaledger/inx-dashboard:1.0
+    ports:
+      - "31031:6060"
+      - "31011:8081"
+    command: 
+      - "--inx.address=srv-captain--iota-hornet:9029"
+      - "--dashboard.bindAddress=0.0.0.0:8081"
+      - "--dashboard.auth.passwordHash=187ec12c64d869e3e2316a59215f5d8b4e2e225742d5e2d13535d3974f746023"
+      - "--dashboard.auth.passwordSalt=d1aee8e5700f458d0f799f7643c12bdd83c964c6cc31b4db60565598cc54a91c"
+      - "--prometheus.enabled=false"
+
+volumes:
+  inx-coordinator-state:
+  iota-hornet-db:
+  iota-hornet-snapshots:
